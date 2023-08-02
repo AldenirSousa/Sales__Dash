@@ -2,20 +2,28 @@
 import pandas as pd  # pip install pandas openpyxl
 import plotly.express as px  # pip install plotly-express
 import streamlit as st  # pip install streamlit
+import numpy as np
 
 # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 st.set_page_config(page_title="Sales Dashboard", page_icon=":bar_chart:", layout="wide")
 
+# ---- READ EXCEL ----
 
-
-df = pd.read_excel(
-    io="supermarkt_sales.xlsx",
+@st.cache
+def get_data_from_excel():
+    df = pd.read_excel(
+        io="supermarkt_sales.xlsx",
         engine="openpyxl",
         sheet_name="Sales",
         skiprows=3,
         usecols="B:R",
         nrows=1000,
-)
+        )
+
+    # Add 'hour' column to dataframe
+    df["hour"] = pd.to_datetime(df["Time"], format="%H:%M:%S").dt.hour 
+    return df
+df = get_data_from_excel()
 
 # ---- SIDEBAR ----
 
@@ -49,6 +57,7 @@ st.title(":bar_chart: Sales Dashboard")
 st.markdown("##")
 
 # TOP KPI's
+
 total_sales = int(df_selection["Total"].sum())
 average_rating = round(df_selection["Rating"].mean(), 1)
 star_rating = ":star:" * int(round(average_rating, 0))
@@ -65,6 +74,48 @@ with right_column:
     st.subheader("Average Sales Per Transaction:")
     st.subheader(f"US $ {average_sale_by_transaction}")
 
-
 st.markdown("""---""")
+
+# SALES BY PRODUCT LINE [BAR CHART]
+sales_by_product_line = (
+    df_selection.groupby(by=["Product line"]).sum(numeric_only=True)[["Total"]].sort_values(by="Total")
+)
+fig_product_sales = px.bar(
+    sales_by_product_line,
+    x="Total",
+    y=sales_by_product_line.index,
+    orientation="h",
+    title="<b>Sales by Product Line</b>",
+    color_discrete_sequence=["#0083B8"] * len(sales_by_product_line),
+    template="plotly_white",
+)
+
+fig_product_sales.update_layout(
+    plot_bgcolor="rgba(0,0,0,0)",
+    xaxis=(dict(showgrid=False))
+)
+
+
+st.plotly_chart(fig_product_sales)
+
+# SALES BY HOUR [BAR CHART]
+sales_by_hour = df_selection.groupby(by=["hour"]).sum(numeric_only=True)[["Total"]]
+fig_hourly_sales = px.bar(
+    sales_by_hour,
+    x=sales_by_hour.index,
+    y="Total",
+    title="<b>Sales by hour</b>",
+    color_discrete_sequence=["#0083B8"] * len(sales_by_hour),
+    template="plotly_white",
+)
+fig_hourly_sales.update_layout(
+    xaxis=dict(tickmode="linear"),
+    plot_bgcolor="rgba(0,0,0,0)",
+    yaxis=(dict(showgrid=False)),
+)
+
+st.plotly_chart(fig_product_sales)
+
+
+
 
